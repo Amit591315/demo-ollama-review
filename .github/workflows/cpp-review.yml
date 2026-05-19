@@ -1,4 +1,4 @@
-name: C++ RAII Code Review
+name: C++ RAII Code Review (Docker)
 
 on:
   pull_request:
@@ -12,11 +12,12 @@ on:
     paths:
       - '**.cpp'
       - '**.h'
+  workflow_dispatch:
 
 jobs:
   review:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -24,40 +25,37 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache Ollama models
-        uses: actions/cache@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
         with:
-          path: ~/.ollama/models
-          key: ollama-llama3.2-3b-${{ runner.os }}
+          context: .
+          push: false
+          load: true
+          tags: cpp-raii-reviewer:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Install Ollama
-        run: curl -fsSL https://ollama.ai/install.sh | sh
-
-      - name: Start Ollama daemon
+      - name: Run code review in Docker
         run: |
-          ollama serve &
-          echo "Waiting for Ollama daemon..."
-          for i in $(seq 1 30); do
-            ollama list >/dev/null 2>&1 && echo "Ollama ready." && break
-            sleep 1
-          done
-
-      - name: Pull model
-        run: ollama pull llama3.2:3b
-
-      - name: Run RAII code review
-        run: |
-          chmod +x scripts/ollama-review.sh
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             BASE_SHA="${{ github.event.pull_request.base.sha }}"
-            scripts/ollama-review.sh \
+            docker run --rm \
+              -v $(pwd):/workspace \
+              -e OLLAMA_REVIEW_MODEL=llama3.2:3b \
+              cpp-raii-reviewer:latest \
               --base "$BASE_SHA" \
-              --prompt-file prompts/cpp-raii-analysis-prompt.txt \
+              --custom-model \
               | tee review-output.txt
           else
-            scripts/ollama-review.sh \
+            docker run --rm \
+              -v $(pwd):/workspace \
+              -e OLLAMA_REVIEW_MODEL=llama3.2:3b \
+              cpp-raii-reviewer:latest \
               --base HEAD~1 \
-              --prompt-file prompts/cpp-raii-analysis-prompt.txt \
+              --custom-model \
               | tee review-output.txt
           fi
 
