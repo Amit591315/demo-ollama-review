@@ -47,7 +47,6 @@ jobs:
               -e OLLAMA_REVIEW_MODEL=llama3.2:3b \
               cpp-raii-reviewer:latest \
               --base "$BASE_SHA" \
-              --custom-model \
               | tee review-output.txt
           else
             docker run --rm \
@@ -55,7 +54,6 @@ jobs:
               -e OLLAMA_REVIEW_MODEL=llama3.2:3b \
               cpp-raii-reviewer:latest \
               --base HEAD~1 \
-              --custom-model \
               | tee review-output.txt
           fi
 
