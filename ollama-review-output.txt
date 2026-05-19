@@ -1,0 +1,4 @@
+Running review with model: llama3.2:3b
+No significant findings. The provided Git diff appears to be a well-structu[12D[K
+well-structured and complete script for running local AI code review using [K
+Ollama.
