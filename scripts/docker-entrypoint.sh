@@ -5,8 +5,8 @@
 set -euo pipefail
 
 BASE_MODEL="${OLLAMA_REVIEW_MODEL:-llama3.2:3b}"
-CUSTOM_MODEL="cpp-raii-reviewer"
-MODELFILE="/app/prompts/Modelfile"
+CUSTOM_MODEL="${OLLAMA_CUSTOM_MODEL_NAME:-cpp-raii-reviewer}"
+MODELFILE="${OLLAMA_MODELFILE:-/app/prompts/Modelfile}"
 
 # Start Ollama daemon in the background
 echo "Starting Ollama daemon..."

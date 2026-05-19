@@ -16,6 +16,7 @@ COPY scripts/ /app/scripts/
 COPY prompts/ /app/prompts/
 
 RUN chmod +x /app/scripts/ollama-review.sh \
+    && chmod +x /app/scripts/ollama-finetune.sh \
     && chmod +x /app/scripts/docker-entrypoint.sh
 
 WORKDIR /workspace

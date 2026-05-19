@@ -6,8 +6,9 @@ DIFF_MODE="unstaged"
 BASE_REF=""
 PROMPT_FILE=""
 BUILD_MODEL=""
-CUSTOM_MODEL_NAME="cpp-raii-reviewer"
-MODELFILE="prompts/Modelfile"
+USE_CUSTOM_MODEL=""
+CUSTOM_MODEL_NAME="${OLLAMA_CUSTOM_MODEL_NAME:-cpp-raii-reviewer}"
+MODELFILE="${OLLAMA_MODELFILE:-prompts/Modelfile}"
 
 print_usage() {
 	cat <<'EOF'
@@ -21,6 +22,8 @@ Options:
 	--prompt-file <p>   Load review instructions from prompt file
 	--build-model       Build the custom Ollama model from prompts/Modelfile and exit
 	--custom-model      Use the pre-built custom model ($CUSTOM_MODEL_NAME)
+	--custom-model-name Override custom model name used by --custom-model/--build-model
+	--modelfile <path>  Use a different Modelfile when building custom model
 	-h, --help          Show this help
 
 Examples:
@@ -30,6 +33,7 @@ Examples:
 	scripts/ollama-review.sh --unstaged --prompt-file prompts/cpp-raii-analysis-prompt.txt
 	scripts/ollama-review.sh --build-model
 	scripts/ollama-review.sh --unstaged --custom-model
+	scripts/ollama-review.sh --build-model --custom-model-name my-reviewer --modelfile prompts/Modelfile
 EOF
 }
 
@@ -76,8 +80,24 @@ while [[ $# -gt 0 ]]; do
 			shift
 			;;
 		--custom-model)
-			MODEL="$CUSTOM_MODEL_NAME"
+			USE_CUSTOM_MODEL="yes"
 			shift
+			;;
+		--custom-model-name)
+			CUSTOM_MODEL_NAME="${2:-}"
+			if [[ -z "$CUSTOM_MODEL_NAME" ]]; then
+				echo "Error: --custom-model-name requires a value" >&2
+				exit 1
+			fi
+			shift 2
+			;;
+		--modelfile)
+			MODELFILE="${2:-}"
+			if [[ -z "$MODELFILE" ]]; then
+				echo "Error: --modelfile requires a file path" >&2
+				exit 1
+			fi
+			shift 2
 			;;
 		-h|--help)
 			print_usage
@@ -90,6 +110,10 @@ while [[ $# -gt 0 ]]; do
 			;;
 	esac
 done
+
+if [[ "$USE_CUSTOM_MODEL" == "yes" ]]; then
+	MODEL="$CUSTOM_MODEL_NAME"
+fi
 
 if [[ "$BUILD_MODEL" == "yes" ]]; then
 	if [[ ! -f "$MODELFILE" ]]; then

@@ -23,6 +23,9 @@ Options:
 - `--base <ref>` review `git diff <ref>...HEAD`
 - `--model <name>` choose a model (default `llama3.2:3b`, or set `OLLAMA_REVIEW_MODEL`)
 - `--prompt-file <path>` load custom review instructions from a file
+- `--custom-model` use pre-built custom model name (`cpp-raii-reviewer` by default)
+- `--custom-model-name <name>` override custom model alias for this run
+- `--modelfile <path>` use another Modelfile with `--build-model`
 
 Examples:
 
@@ -31,6 +34,7 @@ scripts/ollama-review.sh --unstaged
 scripts/ollama-review.sh --staged --model llama2:latest
 scripts/ollama-review.sh --base main --model llama3.2:3b
 scripts/ollama-review.sh --unstaged --prompt-file prompts/cpp-raii-analysis-prompt.txt
+scripts/ollama-review.sh --build-model --custom-model-name cpp-raii-reviewer
 ```
 
 ## C++ RAII Prompt
@@ -58,12 +62,21 @@ scripts/ollama-review.sh --build-model
 
 This reads `prompts/Modelfile` and creates a model named `cpp-raii-reviewer`.
 
+You can override the model name and Modelfile path:
+
+```bash
+scripts/ollama-review.sh --build-model --custom-model-name my-reviewer --modelfile prompts/Modelfile
+```
+
 **Use the custom model for reviews:**
 
 ```bash
 scripts/ollama-review.sh --unstaged --custom-model
 scripts/ollama-review.sh --staged --custom-model
 scripts/ollama-review.sh --base main --custom-model
+
+# use a custom alias
+OLLAMA_CUSTOM_MODEL_NAME=my-reviewer scripts/ollama-review.sh --unstaged --custom-model
 ```
 
 The `Modelfile` (`prompts/Modelfile`) sets:
@@ -76,6 +89,7 @@ The `Modelfile` (`prompts/Modelfile`) sets:
 ```bash
 git init
 chmod +x scripts/ollama-review.sh
+chmod +x scripts/ollama-finetune.sh
 ollama serve
 ollama list
 ```
@@ -124,7 +138,7 @@ After the workflow completes:
 
 ## The `cpp-raii-reviewer` Custom Llama Model
 
-This repository includes a fine-tuned Ollama model configuration (`prompts/Modelfile`) that:
+This repository includes an instruction-tuned Ollama model configuration (`prompts/Modelfile`) that:
 
 - **Base Model**: `llama3.2:3b`
 - **System Prompt**: Specialized C++ RAII code review instructions
@@ -138,6 +152,38 @@ The model emphasizes:
 - Exception safety
 - Smart pointers vs raw pointers
 - Proper resource acquisition/release symmetry
+
+## Fine-Tune Workflow With Ollama
+
+If you want a stronger specialized reviewer, use the helper script:
+
+```bash
+scripts/ollama-finetune.sh --model-name cpp-raii-reviewer-ft
+```
+
+This script:
+- Pulls your base model
+- Bakes your review instructions into a generated Modelfile
+- Optionally adds an adapter (`--adapter <path>`) for LoRA/QLoRA style tuning
+- Creates a reusable model in Ollama
+
+Examples:
+
+```bash
+# Build from a different base model
+scripts/ollama-finetune.sh --base-model llama3.1:8b --model-name cpp-raii-reviewer-8b
+
+# Build with a custom prompt and adapter
+scripts/ollama-finetune.sh \
+	--prompt-file prompts/cpp-raii-analysis-prompt.txt \
+	--adapter ./adapters/raii-lora \
+	--model-name cpp-raii-reviewer-lora
+
+# Run review with the tuned model
+scripts/ollama-review.sh --unstaged --model cpp-raii-reviewer-ft
+```
+
+Note: Ollama itself packages and serves models. Full training is done externally (for example with LoRA/QLoRA tooling), then imported via `ADAPTER`.
 
 ### Build Locally
 
