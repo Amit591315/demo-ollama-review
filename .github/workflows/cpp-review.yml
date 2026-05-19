@@ -1,0 +1,70 @@
+name: C++ RAII Code Review
+
+on:
+  pull_request:
+    paths:
+      - '**.cpp'
+      - '**.h'
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '**.cpp'
+      - '**.h'
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache Ollama models
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-llama3.2-3b-${{ runner.os }}
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.ai/install.sh | sh
+
+      - name: Start Ollama daemon
+        run: |
+          ollama serve &
+          echo "Waiting for Ollama daemon..."
+          for i in $(seq 1 30); do
+            ollama list >/dev/null 2>&1 && echo "Ollama ready." && break
+            sleep 1
+          done
+
+      - name: Pull model
+        run: ollama pull llama3.2:3b
+
+      - name: Run RAII code review
+        run: |
+          chmod +x scripts/ollama-review.sh
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            scripts/ollama-review.sh \
+              --base "$BASE_SHA" \
+              --prompt-file prompts/cpp-raii-analysis-prompt.txt \
+              | tee review-output.txt
+          else
+            scripts/ollama-review.sh \
+              --base HEAD~1 \
+              --prompt-file prompts/cpp-raii-analysis-prompt.txt \
+              | tee review-output.txt
+          fi
+
+      - name: Upload review output
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code-review-${{ github.run_number }}
+          path: review-output.txt
+          retention-days: 30

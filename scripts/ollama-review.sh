@@ -4,6 +4,10 @@ set -euo pipefail
 MODEL="${OLLAMA_REVIEW_MODEL:-llama3.2:3b}"
 DIFF_MODE="unstaged"
 BASE_REF=""
+PROMPT_FILE=""
+BUILD_MODEL=""
+CUSTOM_MODEL_NAME="cpp-raii-reviewer"
+MODELFILE="prompts/Modelfile"
 
 print_usage() {
 	cat <<'EOF'
@@ -14,12 +18,18 @@ Options:
 	--unstaged          Review unstaged changes (default)
 	--base <ref>        Review changes from <ref> to HEAD (git diff <ref>...HEAD)
 	--model <name>      Ollama model name (default: $OLLAMA_REVIEW_MODEL or llama3.2:3b)
+	--prompt-file <p>   Load review instructions from prompt file
+	--build-model       Build the custom Ollama model from prompts/Modelfile and exit
+	--custom-model      Use the pre-built custom model ($CUSTOM_MODEL_NAME)
 	-h, --help          Show this help
 
 Examples:
 	scripts/ollama-review.sh --unstaged
 	scripts/ollama-review.sh --staged --model llama2:latest
 	scripts/ollama-review.sh --base main --model llama3.2:3b
+	scripts/ollama-review.sh --unstaged --prompt-file prompts/cpp-raii-analysis-prompt.txt
+	scripts/ollama-review.sh --build-model
+	scripts/ollama-review.sh --unstaged --custom-model
 EOF
 }
 
@@ -49,6 +59,26 @@ while [[ $# -gt 0 ]]; do
 			fi
 			shift 2
 			;;
+		--prompt-file)
+			PROMPT_FILE="${2:-}"
+			if [[ -z "$PROMPT_FILE" ]]; then
+				echo "Error: --prompt-file requires a file path" >&2
+				exit 1
+			fi
+			if [[ ! -f "$PROMPT_FILE" ]]; then
+				echo "Error: prompt file not found: $PROMPT_FILE" >&2
+				exit 1
+			fi
+			shift 2
+			;;
+		--build-model)
+			BUILD_MODEL="yes"
+			shift
+			;;
+		--custom-model)
+			MODEL="$CUSTOM_MODEL_NAME"
+			shift
+			;;
 		-h|--help)
 			print_usage
 			exit 0
@@ -60,6 +90,17 @@ while [[ $# -gt 0 ]]; do
 			;;
 	esac
 done
+
+if [[ "$BUILD_MODEL" == "yes" ]]; then
+	if [[ ! -f "$MODELFILE" ]]; then
+		echo "Error: Modelfile not found: $MODELFILE" >&2
+		exit 1
+	fi
+	echo "Building custom model '$CUSTOM_MODEL_NAME' from $MODELFILE ..."
+	ollama create "$CUSTOM_MODEL_NAME" -f "$MODELFILE"
+	echo "Done. Run with: scripts/ollama-review.sh --unstaged --custom-model"
+	exit 0
+fi
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 	echo "Error: current directory is not a git repository." >&2
@@ -105,14 +146,20 @@ if [[ ${#DIFF_CONTENT} -gt $MAX_CHARS ]]; then
 [TRUNCATED: diff was longer than $MAX_CHARS characters]"
 fi
 
-PROMPT="You are a strict senior reviewer. Review the git diff below.
+if [[ -n "$PROMPT_FILE" ]]; then
+	BASE_PROMPT="$(cat "$PROMPT_FILE")"
+else
+	BASE_PROMPT="You are a strict senior reviewer. Review the git diff below.
 
 Rules:
 - Focus on real defects, regressions, security risks, and missing tests.
 - Prioritize findings by severity: critical, high, medium, low.
 - For each finding include: file path, why it is an issue, and a concrete fix.
 - If no findings, explicitly say 'No significant findings'.
-- Keep summary brief.
+- Keep summary brief."
+fi
+
+PROMPT="$BASE_PROMPT
 
 Review scope: $REVIEW_SCOPE
 

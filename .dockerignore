@@ -1,0 +1,6 @@
+.git
+*.txt
+README.md
+cpp-dummy/
+cpp-dummy-review-output.txt
+ollama-review-output.txt
